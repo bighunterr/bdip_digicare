@@ -287,6 +287,12 @@ async function handle(request, method, segments) {
       const items = await db.collection('products').find({}).toArray();
       return ok(items.map(({_id, ...r}) => r));
     }
+    if (method === 'GET' && id) {
+      const doc = await db.collection('products').findOne({ id });
+      if (!doc) return bad('Not found', 404);
+      const { _id, ...clean } = doc;
+      return ok(clean);
+    }
     if (method === 'POST' && !id) {
       const body = await readJSON(request);
       const doc = { id: uuidv4(), createdAt: new Date(), ...body };
@@ -301,6 +307,97 @@ async function handle(request, method, segments) {
     }
     if (method === 'DELETE' && id) {
       await db.collection('products').deleteOne({ id });
+      return ok({ deleted: true });
+    }
+  }
+
+  // ---- PROJECTS ----
+  if (resource === 'projects') {
+    if (method === 'GET' && !id) {
+      const items = await db.collection('projects').find({}).sort({ createdAt: -1 }).toArray();
+      return ok(items.map(({_id, ...r}) => r));
+    }
+    if (method === 'GET' && id) {
+      const doc = await db.collection('projects').findOne({ id });
+      if (!doc) return bad('Not found', 404);
+      const { _id, ...clean } = doc;
+      return ok(clean);
+    }
+    if (method === 'POST' && !id) {
+      const body = await readJSON(request);
+      const doc = { id: uuidv4(), createdAt: new Date(), status: 'Planning', progress: 0, deliverables: [], milestones: [], ...body };
+      await db.collection('projects').insertOne(doc);
+      const { _id, ...clean } = doc;
+      return ok(clean);
+    }
+    if (method === 'PATCH' && id) {
+      const body = await readJSON(request);
+      await db.collection('projects').updateOne({ id }, { $set: body });
+      const doc = await db.collection('projects').findOne({ id });
+      const { _id, ...clean } = doc;
+      return ok(clean);
+    }
+    if (method === 'DELETE' && id) {
+      await db.collection('projects').deleteOne({ id });
+      return ok({ deleted: true });
+    }
+  }
+
+  // ---- PARTNERS ----
+  if (resource === 'partners') {
+    if (method === 'GET' && !id) {
+      const items = await db.collection('partners').find({}).toArray();
+      return ok(items.map(({_id, ...r}) => r));
+    }
+    if (method === 'GET' && id && !action) {
+      const doc = await db.collection('partners').findOne({ id });
+      if (!doc) return bad('Not found', 404);
+      const { _id, ...clean } = doc;
+      return ok(clean);
+    }
+    if (method === 'POST' && !id) {
+      const body = await readJSON(request);
+      const doc = { id: uuidv4(), createdAt: new Date(), status: 'Active', ...body };
+      await db.collection('partners').insertOne(doc);
+      const { _id, ...clean } = doc;
+      return ok(clean);
+    }
+    if (method === 'PATCH' && id) {
+      const body = await readJSON(request);
+      await db.collection('partners').updateOne({ id }, { $set: body });
+      return ok({ updated: true });
+    }
+    if (method === 'DELETE' && id) {
+      await db.collection('partners').deleteOne({ id });
+      await db.collection('partner_docs').deleteMany({ partnerId: id });
+      return ok({ deleted: true });
+    }
+    // Partner documents: /partners/:id/documents
+    if (id && action === 'documents') {
+      if (method === 'GET') {
+        const items = await db.collection('partner_docs').find({ partnerId: id }, { projection: { content: 0 } }).sort({ createdAt: -1 }).toArray();
+        return ok(items.map(({_id, ...r}) => r));
+      }
+      if (method === 'POST') {
+        const body = await readJSON(request);
+        const doc = { id: uuidv4(), partnerId: id, createdAt: new Date(), ...body };
+        await db.collection('partner_docs').insertOne(doc);
+        const { _id, content, ...clean } = doc;
+        return ok(clean);
+      }
+    }
+    // Partner document download: /partners/:id/download/:docId ... but simpler: /partner-docs/:docId/download
+  }
+
+  // ---- PARTNER DOCS DIRECT ----
+  if (resource === 'partner-docs' && id) {
+    if (method === 'GET' && action === 'download') {
+      const doc = await db.collection('partner_docs').findOne({ id });
+      if (!doc) return bad('Not found', 404);
+      return ok({ id: doc.id, filename: doc.filename, mimetype: doc.mimetype, content: doc.content });
+    }
+    if (method === 'DELETE') {
+      await db.collection('partner_docs').deleteOne({ id });
       return ok({ deleted: true });
     }
   }

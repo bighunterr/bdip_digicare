@@ -270,6 +270,66 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Search for 'SIMRS' returns 2 opportunities. Search for 'Sardjito' returns 2 opportunities, 1 organization (RSUP Dr. Sardjito), 1 activity. Search for 'nonexistentxyz' returns empty arrays. No query parameter returns empty arrays. Case-insensitive search verified (lowercase 'simrs' finds 'SIMRS'). UUID validation passed (no _id). All search functionality working perfectly."
 
+  - task: "Projects CRUD (GET/POST/PATCH/DELETE /api/projects, GET /api/projects/:id)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Full CRUD for projects. GET /api/projects returns auto-seeded projects from Implementation/Closed Won opportunities (3 projects). GET /api/projects/:id single fetch. POST creates with defaults (status:'Planning', progress:0, deliverables:[], milestones:[]). PATCH updates including nested arrays (deliverables, milestones). DELETE removes project. All fields: id, name, opportunityId, organizationName, product, status, progress, budget, startDate, endDate, businessOwner, technicalOwner, deliverables[], milestones[], internalNotes."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/projects returns 3 auto-seeded projects with all required fields (id, name, organizationName, product, status, progress, budget, startDate, endDate, businessOwner, technicalOwner, deliverables, milestones, internalNotes). UUID validation passed (no _id). Deliverables and milestones are arrays. Progress is number 0-100. GET /api/projects/:id returns single project. POST creates with UUID and defaults (deliverables:[], milestones:[], progress:0). PATCH updates fields including nested arrays (verified deliverables array replacement). DELETE removes project and verified deletion. All CRUD operations working perfectly."
+
+  - task: "Partners CRUD (GET/POST/PATCH/DELETE /api/partners, GET /api/partners/:id)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Full CRUD for partners. GET /api/partners returns 8 seeded partners (Huawei, Cisco, Fortinet, Mikrotik, Dell, HPE, Lenovo, Local Distributor). GET /api/partners/:id single fetch. POST creates partner with UUID. PATCH updates partner fields. DELETE removes partner and cascades to partner_docs. All fields: id, name, category, tier, country, contactName, email, phone, products[], sla, notes, status."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/partners returns exactly 8 seeded partners with expected names (Huawei, Cisco, Fortinet, Mikrotik, Dell, HPE, Lenovo, Local Distributor). All required fields present (id, name, category, tier, country, contactName, email, phone, products, sla, notes, status). UUID validation passed (no _id). Products field is array. GET /api/partners/:id returns single partner. POST creates partner with UUID. PATCH updates partner fields. DELETE removes partner. All CRUD operations working perfectly."
+
+  - task: "Partner Documents (POST/GET /api/partners/:id/documents, GET/DELETE /api/partner-docs/:docId/download)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Partner document storage. POST /api/partners/:id/documents uploads document with base64 content, returns UUID without content field. GET /api/partners/:id/documents lists documents WITHOUT content field (bandwidth optimization). GET /api/partner-docs/:docId/download returns full document WITH content. DELETE /api/partner-docs/:docId removes document. Cascade delete: deleting partner also deletes all associated documents."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: POST /api/partners/:id/documents creates document with UUID, response excludes content field (bandwidth optimization verified). GET /api/partners/:id/documents returns list without content field. GET /api/partner-docs/:docId/download returns document WITH content, filename, mimetype. Downloaded content matches uploaded content. DELETE /api/partner-docs/:docId removes document. CASCADE DELETE VERIFIED - deleting partner successfully removes all associated documents (tested by creating partner with document, deleting partner, verifying document is gone). All document operations working perfectly."
+
+  - task: "Products Single Fetch (GET /api/products/:id) with enriched fields"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /api/products/:id returns single product with UUID. Seed logic upgraded to enrich existing products with features[], benefits[], useCases[], techSpecs fields. All 13 seeded products now have these enriched fields."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/products/:id returns single product with UUID (no _id). Verified SIMRS Digicare product has all enriched fields: features (array, 6 items), benefits (array, 4 items), useCases (array, 3 items), techSpecs (string, 80 chars). ALL 13 products in list verified to have enriched fields. Product enrichment working perfectly."
+
 
 frontend:
   - task: "Executive Dashboard UI + PDF Export"
@@ -346,21 +406,17 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.3"
-  test_sequence: 3
+  version: "1.4"
+  test_sequence: 4
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Activities CRUD (GET/POST/PATCH/DELETE /api/activities)"
-    - "Products CRUD (GET/POST/PATCH/DELETE /api/products)"
-    - "Proposals versioned document storage (GET/POST/DELETE /api/proposals, GET /api/proposals/:id/download)"
-    - "Notifications (GET /api/notifications)"
-    - "Global Search (GET /api/search?q=...)"
+    - "Projects CRUD (GET/POST/PATCH/DELETE /api/projects, GET /api/projects/:id)"
+    - "Partners CRUD (GET/POST/PATCH/DELETE /api/partners, GET /api/partners/:id)"
+    - "Partner Documents (POST/GET /api/partners/:id/documents, GET/DELETE /api/partner-docs/:docId/download)"
+    - "Products Single Fetch (GET /api/products/:id) with enriched fields"
   stuck_tasks: []
-  - agent: "testing"
-    message: "✅ NEW ENDPOINTS TESTING COMPLETE - ALL 5 NEW MODULES WORKING PERFECTLY. Tested 6 test suites covering all new endpoints. Results: (1) Activities CRUD ✅ - GET sorted by scheduledAt asc, POST with default status 'Scheduled', PATCH updates, DELETE verified. (2) Products CRUD ✅ - 13 seeded products verified (all expected names found), full CRUD working. (3) Proposals ✅ - versioned storage working (auto-increment by title+category, no content in list, download returns base64). (4) Notifications ✅ - all types (overdue, upcoming, highvalue, risk) and levels (high, medium, low) working, sorted by 'at' desc, max 20. (5) Global Search ✅ - case-insensitive search across opportunities/organizations/activities, UUID validation passed. (6) Seed Products ✅ - idempotent, returns 13 products. All UUID validation passed (no MongoDB _id). Total: 6/6 tests passed. Backend is production-ready!"
-
   test_all: false
   test_priority: "high_first"
 
@@ -369,5 +425,9 @@ agent_communication:
     message: "MVP + expansion complete. Please test all backend endpoints: seed, dashboard, opportunities (CRUD + bulk), organizations (CRUD + nested stakeholders), stakeholders (PATCH/DELETE), risks (CRUD), ai (all 7 task types). Verify UUIDs used (never MongoDB _id in responses), verify AI returns non-empty text (should hit gpt-4o fallback and NOT demo fallback since Emergent LLM key budget was recharged)."
   - agent: "main"
     message: "Added 5 new modules. NEW endpoints to test: (1) Activities CRUD - GET/POST/PATCH/DELETE /api/activities; (2) Products CRUD - GET/POST/PATCH/DELETE /api/products; (3) Proposals - GET list (no content), POST (auto-versioning by title+category), GET /api/proposals/:id/download (returns base64 content), DELETE; (4) GET /api/notifications - returns array of alerts based on overdue activities/upcoming/high-value opps/critical risks; (5) GET /api/search?q=... - returns {opportunities, organizations, activities}. Also verify seed still populates 13 products. All previous endpoints must still work."
+  - agent: "main"
+    message: "3rd batch. NEW endpoints: (1) Projects CRUD - GET/POST/PATCH/DELETE /api/projects (fields: name, opportunityId, organizationName, status, progress, budget, deliverables[], milestones[], internalNotes). GET /api/projects/:id single fetch. Verify seed auto-created ~3 projects from won/implementation opportunities. Verify PATCH can update nested deliverables array. (2) Partners CRUD - GET/POST/PATCH/DELETE /api/partners with fields (name, category, tier, country, contactName, email, phone, products[], sla, notes). Verify seed populates 8 partners (Huawei/Cisco/Fortinet/Mikrotik/Dell/HPE/Lenovo/Local Distributor). (3) Partner documents - POST /api/partners/:id/documents (title, category, filename, mimetype, size, content:base64), GET /api/partners/:id/documents (returns list WITHOUT content), GET /api/partner-docs/:docId/download (returns content), DELETE /api/partner-docs/:docId. (4) GET /api/products/:id single product fetch. Verify existing products now have features[], benefits[], useCases[], techSpecs fields (auto-enriched by seed). DO NOT re-test previously verified endpoints."
   - agent: "testing"
     message: "✅ BACKEND TESTING COMPLETE - ALL CRITICAL ENDPOINTS WORKING. Tested 25 operations across all 6 backend tasks. Results: POST /api/seed ✅, GET /api/dashboard ✅ (all 10 KPIs), Opportunities full CRUD ✅, Bulk import ✅, Organizations CRUD ✅, Nested stakeholders ✅, Direct stakeholder ops ✅, Cascade delete ✅, Risks CRUD ✅, AI endpoint ✅ (6/7 tasks, gpt-5 working, NOT demo fallback). UUID validation passed - no MongoDB _id in any response. Data integrity verified - deletes work, cascade works. Minor: 1 AI task (business_case) timed out (network issue, not code). Backend is production-ready!"
+  - agent: "testing"
+    message: "✅ 3RD BATCH TESTING COMPLETE - ALL 4 NEW ENDPOINT GROUPS WORKING PERFECTLY. Tested 5 test suites with comprehensive coverage. Results: (1) Seed Endpoint ✅ - returns seeded status with products:13, partners:8, projects:3 counts. (2) Projects CRUD ✅ - GET returns 3 auto-seeded projects, all required fields present (id, name, organizationName, product, status, progress, budget, startDate, endDate, businessOwner, technicalOwner, deliverables[], milestones[], internalNotes), UUID validation passed, GET /:id single fetch working, POST creates with defaults (deliverables:[], milestones:[], progress:0), PATCH updates nested arrays correctly, DELETE verified. (3) Partners CRUD ✅ - GET returns exactly 8 seeded partners (Huawei, Cisco, Fortinet, Mikrotik, Dell, HPE, Lenovo, Local Distributor), all fields present, UUID validation passed, GET /:id working, POST/PATCH/DELETE working. (4) Partner Documents ✅ - POST creates with UUID (content excluded from response), GET list excludes content (bandwidth optimization), GET download includes content, DELETE working, CASCADE DELETE VERIFIED (deleting partner removes all docs). (5) Products Single Fetch ✅ - GET /api/products/:id working, enriched fields verified (features[], benefits[], useCases[], techSpecs), all 13 products enriched. Total: 5/5 test suites passed, 100% success rate. Backend is production-ready!"

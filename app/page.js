@@ -29,6 +29,8 @@ import ExcelImport from '@/components/modules/ExcelImport';
 import ActivityTimeline from '@/components/modules/ActivityTimeline';
 import ProposalCenter from '@/components/modules/ProposalCenter';
 import ProductCatalog from '@/components/modules/ProductCatalog';
+import ProjectIntelligence from '@/components/modules/ProjectIntelligence';
+import Partnerships from '@/components/modules/Partnerships';
 import NotificationBell from '@/components/modules/NotificationBell';
 import GlobalSearch from '@/components/modules/GlobalSearch';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -618,6 +620,20 @@ export default function App() {
     setAiOpen(true);
   }
 
+  function openAIForProduct(product) {
+    setAiPreset({ task: 'proposal_summary', context: {
+      product: product.name,
+      description: product.desc,
+      features: product.features,
+      benefits: product.benefits,
+      target_industries: product.target,
+      starting_price_idr: product.startingPrice,
+      subscription_idr: product.subscription,
+      implementation_weeks: product.implWeeks
+    }});
+    setAiOpen(true);
+  }
+
   return (
     <div className="min-h-screen flex bg-[#F8FAFC] dark:bg-slate-950">
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} current={current} setCurrent={setCurrent}/>
@@ -634,12 +650,12 @@ export default function App() {
           {current==='crm' && <Kanban opportunities={opps} onMove={moveOpp} onOpen={(o)=>setOppDialog({open:true,opp:o})} onCreate={()=>setOppDialog({open:true,opp:null})}/>}
           {current==='orgs' && <OrganizationsView/>}
           {current==='stakeholders' && <OrganizationsView/>}
-          {current==='projects' && <Placeholder title="Project Intelligence" subtitle="Project delivery visibility" icon={ListChecks}/>}
+          {current==='projects' && <ProjectIntelligence/>}
           {current==='activities' && <ActivityTimeline/>}
           {current==='proposals' && <ProposalCenter/>}
           {current==='risks' && <RiskRegister onAI={openAIForRisk}/>}
-          {current==='products' && <ProductCatalog/>}
-          {current==='partners' && <Placeholder title="Partnerships" subtitle="Huawei · Cisco · Fortinet · Dell · HPE" icon={Handshake}/>}
+          {current==='products' && <ProductCatalog onAI={openAIForProduct}/>}
+          {current==='partners' && <Partnerships/>}
           {current==='reports' && <Placeholder title="Reporting Center" subtitle="PDF & Excel report generation" icon={BarChart3}/>}
           {current==='import' && <ExcelImport/>}
         </main>
