@@ -23,6 +23,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import OrganizationsView from '@/components/modules/OrganizationsView';
+import RiskRegister from '@/components/modules/RiskRegister';
+import ExcelImport from '@/components/modules/ExcelImport';
+import { FileDown } from 'lucide-react';
+import { exportElementToPDF } from '@/lib/pdfExport';
 
 const STAGES = ['Prospecting','Discovery','Consultative Meeting','Solution Design','Proposal Submitted','Negotiation','PO/SPK','Implementation','Closed Won','Closed Lost'];
 const STAGE_COLORS = {
@@ -62,6 +67,7 @@ function NAV_ITEMS() { return [
   { key: 'products', label: 'Product Catalog', icon: Package },
   { key: 'partners', label: 'Partnerships', icon: Handshake },
   { key: 'reports', label: 'Reporting Center', icon: BarChart3 },
+  { key: 'import', label: 'Excel Import', icon: FileDown },
 ]; }
 
 function Sidebar({ collapsed, setCollapsed, current, setCurrent }) {
@@ -158,8 +164,15 @@ function KpiCard({ icon: Icon, label, value, sub, tone='blue' }) {
 function Dashboard({ data, onOpenAI }) {
   if (!data) return <div className="p-8 text-slate-500">Loading…</div>;
   const k = data.kpis;
+  async function handleExportPDF() {
+    try {
+      toast.loading('Generating PDF…', { id: 'pdf' });
+      await exportElementToPDF('dashboard-export', `digicare-executive-report-${new Date().toISOString().slice(0,10)}.pdf`);
+      toast.success('PDF downloaded', { id: 'pdf' });
+    } catch (e) { toast.error('Export failed: ' + e.message, { id: 'pdf' }); }
+  }
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6" id="dashboard-export">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Executive Dashboard</h1>
@@ -167,6 +180,7 @@ function Dashboard({ data, onOpenAI }) {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2"><Filter className="w-4 h-4"/>Filters</Button>
+          <Button variant="outline" size="sm" onClick={handleExportPDF} className="gap-2"><FileDown className="w-4 h-4"/>Export PDF</Button>
           <Button size="sm" onClick={onOpenAI} className="bg-blue-600 hover:bg-blue-700 gap-2"><Sparkles className="w-4 h-4"/>AI Executive Insight</Button>
         </div>
       </div>
@@ -595,6 +609,14 @@ export default function App() {
     setAiOpen(true);
   }
 
+  function openAIForRisk(risk) {
+    setAiPreset({ task: 'risk_mitigation', context: {
+      title: risk.title, category: risk.category, severity: risk.severity,
+      probability: risk.probability, owner: risk.owner, current_mitigation: risk.mitigation
+    }});
+    setAiOpen(true);
+  }
+
   return (
     <div className="min-h-screen flex bg-[#F8FAFC]">
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} current={current} setCurrent={setCurrent}/>
@@ -603,15 +625,16 @@ export default function App() {
         <main className="flex-1 overflow-y-auto">
           {current==='dashboard' && <Dashboard data={dashboard} onOpenAI={openAIExec}/>}
           {current==='crm' && <Kanban opportunities={opps} onMove={moveOpp} onOpen={(o)=>setOppDialog({open:true,opp:o})} onCreate={()=>setOppDialog({open:true,opp:null})}/>}
-          {current==='orgs' && <Placeholder title="Organizations" subtitle="Client master data" icon={Building2}/>}
-          {current==='stakeholders' && <Placeholder title="Stakeholders" subtitle="Decision makers, champions, technical PICs" icon={Users2}/>}
+          {current==='orgs' && <OrganizationsView/>}
+          {current==='stakeholders' && <OrganizationsView/>}
           {current==='projects' && <Placeholder title="Project Intelligence" subtitle="Project delivery visibility" icon={ListChecks}/>}
           {current==='activities' && <Placeholder title="Activity Timeline" subtitle="Meetings, calls, WhatsApp, visits, demos" icon={CalendarClock}/>}
           {current==='proposals' && <Placeholder title="Proposal Center" subtitle="Versioned proposal, BoM, RAB, MoM, NDA, PKS" icon={FileText}/>}
-          {current==='risks' && <Placeholder title="Risk Register" subtitle="Commercial · Technical · Operational · Financial" icon={ShieldAlert}/>}
+          {current==='risks' && <RiskRegister onAI={openAIForRisk}/>}
           {current==='products' && <Placeholder title="Product Catalog" subtitle="Digicare product portfolio" icon={Package}/>}
           {current==='partners' && <Placeholder title="Partnerships" subtitle="Huawei · Cisco · Fortinet · Dell · HPE" icon={Handshake}/>}
           {current==='reports' && <Placeholder title="Reporting Center" subtitle="PDF & Excel report generation" icon={BarChart3}/>}
+          {current==='import' && <ExcelImport/>}
         </main>
       </div>
       <button onClick={openAIExec} className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-br from-blue-600 to-emerald-500 shadow-2xl flex items-center justify-center text-white z-40 hover:scale-105 transition-transform">

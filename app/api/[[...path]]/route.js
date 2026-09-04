@@ -124,6 +124,34 @@ async function handle(request, method, segments) {
 
   // ---- OPPORTUNITIES ----
   if (resource === 'opportunities') {
+    if (id === 'bulk' && method === 'POST') {
+      const body = await readJSON(request);
+      const rows = Array.isArray(body?.rows) ? body.rows : [];
+      if (rows.length === 0) return bad('No rows provided');
+      const docs = rows.map(r => ({
+        id: uuidv4(),
+        createdAt: new Date(),
+        projectName: r.projectName || r['Project Name'] || 'Untitled',
+        organizationName: r.organizationName || r.Organization || r['Client'] || '-',
+        industry: r.industry || r.Category || r['Industry'] || 'Other',
+        product: r.product || r['Target Output'] || r.Product || '',
+        partner: r.partner || r.Partner || '',
+        stage: r.stage || r['SOP Phase'] || r['Status'] || 'Prospecting',
+        value: Number(r.value || r['Opportunity Value'] || 0) || 0,
+        mrr: Number(r.mrr || r.MRR || 0) || 0,
+        probability: Number(r.probability || 30) || 30,
+        expectedClosing: r.expectedClosing ? new Date(r.expectedClosing) : new Date(Date.now() + 60*86400000),
+        businessOwner: r.businessOwner || r.Owner || '',
+        technicalOwner: r.technicalOwner || '',
+        notes: r.description || r.Description || r.notes || '',
+        blindSpot: r['Blind Spot'] || r.blindSpot || '',
+        recommendation: r['Recommendation'] || r.recommendation || '',
+        documentation: r['Documentation'] || r.documentation || '',
+        targetOutput: r['Target Output'] || r.targetOutput || '',
+      }));
+      await db.collection('opportunities').insertMany(docs);
+      return ok({ inserted: docs.length });
+    }
     if (method === 'GET') {
       const items = await db.collection('opportunities').find({}).sort({ createdAt: -1 }).toArray();
       return ok(items.map(({_id, ...r}) => r));
@@ -149,15 +177,83 @@ async function handle(request, method, segments) {
   }
 
   // ---- ORGANIZATIONS ----
-  if (resource === 'organizations' && method === 'GET') {
-    const items = await db.collection('organizations').find({}).toArray();
-    return ok(items.map(({_id, ...r}) => r));
+  if (resource === 'organizations') {
+    if (method === 'GET' && !id) {
+      const items = await db.collection('organizations').find({}).sort({ createdAt: -1 }).toArray();
+      return ok(items.map(({_id, ...r}) => r));
+    }
+    if (method === 'POST' && !id) {
+      const body = await readJSON(request);
+      const doc = { id: uuidv4(), createdAt: new Date(), status: 'Active', ...body };
+      await db.collection('organizations').insertOne(doc);
+      const { _id, ...clean } = doc;
+      return ok(clean);
+    }
+    if (method === 'PATCH' && id) {
+      const body = await readJSON(request);
+      await db.collection('organizations').updateOne({ id }, { $set: body });
+      return ok({ updated: true });
+    }
+    if (method === 'DELETE' && id) {
+      await db.collection('organizations').deleteOne({ id });
+      await db.collection('stakeholders').deleteMany({ organizationId: id });
+      return ok({ deleted: true });
+    }
+    // /organizations/:id/stakeholders
+    if (id && action === 'stakeholders') {
+      if (method === 'GET') {
+        const items = await db.collection('stakeholders').find({ organizationId: id }).toArray();
+        return ok(items.map(({_id, ...r}) => r));
+      }
+      if (method === 'POST') {
+        const body = await readJSON(request);
+        const doc = { id: uuidv4(), organizationId: id, createdAt: new Date(), ...body };
+        await db.collection('stakeholders').insertOne(doc);
+        const { _id, ...clean } = doc;
+        return ok(clean);
+      }
+    }
+  }
+
+  // ---- STAKEHOLDERS (direct) ----
+  if (resource === 'stakeholders') {
+    if (method === 'GET') {
+      const items = await db.collection('stakeholders').find({}).toArray();
+      return ok(items.map(({_id, ...r}) => r));
+    }
+    if (method === 'PATCH' && id) {
+      const body = await readJSON(request);
+      await db.collection('stakeholders').updateOne({ id }, { $set: body });
+      return ok({ updated: true });
+    }
+    if (method === 'DELETE' && id) {
+      await db.collection('stakeholders').deleteOne({ id });
+      return ok({ deleted: true });
+    }
   }
 
   // ---- RISKS ----
-  if (resource === 'risks' && method === 'GET') {
-    const items = await db.collection('risks').find({}).toArray();
-    return ok(items.map(({_id, ...r}) => r));
+  if (resource === 'risks') {
+    if (method === 'GET' && !id) {
+      const items = await db.collection('risks').find({}).toArray();
+      return ok(items.map(({_id, ...r}) => r));
+    }
+    if (method === 'POST' && !id) {
+      const body = await readJSON(request);
+      const doc = { id: uuidv4(), createdAt: new Date(), status: 'Open', ...body };
+      await db.collection('risks').insertOne(doc);
+      const { _id, ...clean } = doc;
+      return ok(clean);
+    }
+    if (method === 'PATCH' && id) {
+      const body = await readJSON(request);
+      await db.collection('risks').updateOne({ id }, { $set: body });
+      return ok({ updated: true });
+    }
+    if (method === 'DELETE' && id) {
+      await db.collection('risks').deleteOne({ id });
+      return ok({ deleted: true });
+    }
   }
 
   // ---- ACTIVITIES ----
@@ -190,20 +286,30 @@ async function handle(request, method, segments) {
 
     const userText = typeof context === 'string' ? context : JSON.stringify(context || {});
     try {
-      const chat = new LlmChat(key, sid, system).withModel('openai', 'gpt-5').withParams({ max_tokens: 900 });
-      const result = await chat.sendMessage(new UserMessage({ text: userText }));
+      // Try gpt-5 first with high max_tokens (GPT-5 uses reasoning tokens); fallback to gpt-4o if empty/fail
       let text = '';
-      if (typeof result === 'string') text = result;
-      else if (result && typeof result === 'object') {
-        text = result.text || result.content || result.message || result.output || JSON.stringify(result);
+      let modelUsed = 'gpt-5';
+      try {
+        const chat = new LlmChat(key, sid, system).withModel('openai', 'gpt-5').withParams({ max_tokens: 4000 });
+        const result = await chat.sendMessage(new UserMessage({ text: userText }));
+        if (typeof result === 'string') text = result;
+        else if (result && typeof result === 'object') text = result.text || result.content || result.message || result.output || '';
+      } catch (e1) {
+        console.warn('gpt-5 failed, trying gpt-4o:', e1?.message);
       }
-      if (!text || text === '[object Object]') throw new Error('Empty LLM response');
-      return ok({ text, model: 'gpt-5', sessionId: sid });
+      if (!text || text.trim().length < 20) {
+        const chat = new LlmChat(key, `${sid}-4o`, system).withModel('openai', 'gpt-4o').withParams({ max_tokens: 1200 });
+        const result = await chat.sendMessage(new UserMessage({ text: userText }));
+        text = typeof result === 'string' ? result : (result?.text || result?.content || '');
+        modelUsed = 'gpt-4o';
+      }
+      if (!text) throw new Error('Empty LLM response');
+      return ok({ text, model: modelUsed, sessionId: sid });
     } catch (e) {
       console.error('AI error', e?.message);
       // Graceful demo fallback so the aha-moment still lands
       const demo = buildDemoResponse(task, context);
-      return ok({ text: demo, model: 'gpt-5 (demo fallback)', sessionId: sid, warning: e?.message?.includes('Budget') ? 'Emergent LLM budget exceeded \u2013 showing demo output. Provide OPENAI_API_KEY to enable live AI.' : 'AI live call failed \u2013 showing demo output.' });
+      return ok({ text: demo, model: 'demo fallback', sessionId: sid, warning: e?.message?.includes('Budget') ? 'Emergent LLM budget exceeded – showing demo output.' : 'AI live call failed – showing demo output.' });
     }
   }
 
