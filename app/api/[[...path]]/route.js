@@ -257,9 +257,112 @@ async function handle(request, method, segments) {
   }
 
   // ---- ACTIVITIES ----
-  if (resource === 'activities' && method === 'GET') {
-    const items = await db.collection('activities').find({}).sort({ scheduledAt: 1 }).toArray();
-    return ok(items.map(({_id, ...r}) => r));
+  if (resource === 'activities') {
+    if (method === 'GET' && !id) {
+      const items = await db.collection('activities').find({}).sort({ scheduledAt: 1 }).toArray();
+      return ok(items.map(({_id, ...r}) => r));
+    }
+    if (method === 'POST' && !id) {
+      const body = await readJSON(request);
+      const doc = { id: uuidv4(), createdAt: new Date(), status: 'Scheduled', ...body, scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : new Date() };
+      await db.collection('activities').insertOne(doc);
+      const { _id, ...clean } = doc;
+      return ok(clean);
+    }
+    if (method === 'PATCH' && id) {
+      const body = await readJSON(request);
+      if (body.scheduledAt) body.scheduledAt = new Date(body.scheduledAt);
+      await db.collection('activities').updateOne({ id }, { $set: body });
+      return ok({ updated: true });
+    }
+    if (method === 'DELETE' && id) {
+      await db.collection('activities').deleteOne({ id });
+      return ok({ deleted: true });
+    }
+  }
+
+  // ---- PRODUCTS ----
+  if (resource === 'products') {
+    if (method === 'GET' && !id) {
+      const items = await db.collection('products').find({}).toArray();
+      return ok(items.map(({_id, ...r}) => r));
+    }
+    if (method === 'POST' && !id) {
+      const body = await readJSON(request);
+      const doc = { id: uuidv4(), createdAt: new Date(), ...body };
+      await db.collection('products').insertOne(doc);
+      const { _id, ...clean } = doc;
+      return ok(clean);
+    }
+    if (method === 'PATCH' && id) {
+      const body = await readJSON(request);
+      await db.collection('products').updateOne({ id }, { $set: body });
+      return ok({ updated: true });
+    }
+    if (method === 'DELETE' && id) {
+      await db.collection('products').deleteOne({ id });
+      return ok({ deleted: true });
+    }
+  }
+
+  // ---- PROPOSALS / DOCUMENTS ----
+  if (resource === 'proposals') {
+    if (method === 'GET' && id && action === 'download') {
+      const doc = await db.collection('proposals').findOne({ id });
+      if (!doc) return bad('Not found', 404);
+      return ok({ id: doc.id, filename: doc.filename, mimetype: doc.mimetype, content: doc.content });
+    }
+    if (method === 'GET' && !id) {
+      const items = await db.collection('proposals').find({}, { projection: { content: 0 } }).sort({ createdAt: -1 }).toArray();
+      return ok(items.map(({_id, ...r}) => r));
+    }
+    if (method === 'POST' && !id) {
+      const body = await readJSON(request);
+      const prev = await db.collection('proposals').find({ title: body.title, category: body.category }).sort({ version: -1 }).limit(1).toArray();
+      const version = (prev[0]?.version || 0) + 1;
+      const doc = { id: uuidv4(), createdAt: new Date(), version, ...body };
+      await db.collection('proposals').insertOne(doc);
+      const { _id, content, ...clean } = doc;
+      return ok(clean);
+    }
+    if (method === 'DELETE' && id) {
+      await db.collection('proposals').deleteOne({ id });
+      return ok({ deleted: true });
+    }
+  }
+
+  // ---- NOTIFICATIONS ----
+  if (resource === 'notifications' && method === 'GET') {
+    const [opps, acts, risks] = await Promise.all([
+      db.collection('opportunities').find({}).toArray(),
+      db.collection('activities').find({}).toArray(),
+      db.collection('risks').find({}).toArray()
+    ]);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const notif = [];
+    acts.filter(a => new Date(a.scheduledAt) < today && a.status !== 'Done').forEach(a => notif.push({ id: uuidv4(), type: 'overdue', level: 'high', title: 'Overdue activity', desc: `${a.title} \u00b7 ${a.organizationName}`, at: a.scheduledAt }));
+    acts.filter(a => { const d = new Date(a.scheduledAt); const t = new Date(); t.setDate(t.getDate()+2); return d >= today && d <= t && a.status !== 'Done'; }).forEach(a => notif.push({ id: uuidv4(), type: 'upcoming', level: 'medium', title: 'Upcoming activity', desc: `${a.title} \u00b7 ${a.organizationName}`, at: a.scheduledAt }));
+    opps.filter(o => (o.value||0) >= 10e9 && !['Closed Won','Closed Lost'].includes(o.stage)).forEach(o => notif.push({ id: uuidv4(), type: 'highvalue', level: 'low', title: 'High value deal', desc: `${o.projectName} \u00b7 Rp ${(o.value/1e9).toFixed(1)}B`, at: o.createdAt }));
+    risks.filter(r => r.status === 'Open' && (r.severity === 'Critical' || (r.severity === 'High' && r.probability === 'High'))).forEach(r => notif.push({ id: uuidv4(), type: 'risk', level: 'high', title: 'Critical risk open', desc: r.title, at: r.createdAt }));
+    return ok(notif.sort((a,b) => new Date(b.at) - new Date(a.at)).slice(0, 20));
+  }
+
+  // ---- GLOBAL SEARCH ----
+  if (resource === 'search' && method === 'GET') {
+    const url = new URL(request.url);
+    const q = (url.searchParams.get('q') || '').toLowerCase().trim();
+    if (!q) return ok({ opportunities: [], organizations: [], activities: [] });
+    const [opps, orgs, acts] = await Promise.all([
+      db.collection('opportunities').find({}).limit(200).toArray(),
+      db.collection('organizations').find({}).limit(200).toArray(),
+      db.collection('activities').find({}).limit(200).toArray()
+    ]);
+    const m = (x) => (x || '').toString().toLowerCase().includes(q);
+    return ok({
+      opportunities: opps.filter(o => m(o.projectName) || m(o.organizationName) || m(o.industry) || m(o.product)).slice(0,8).map(({_id, ...r}) => r),
+      organizations: orgs.filter(o => m(o.name) || m(o.industry) || m(o.segment) || m(o.province)).slice(0,8).map(({_id, ...r}) => r),
+      activities: acts.filter(a => m(a.title) || m(a.organizationName) || m(a.type)).slice(0,8).map(({_id, ...r}) => r),
+    });
   }
 
   // ---- AI ASSISTANT ----

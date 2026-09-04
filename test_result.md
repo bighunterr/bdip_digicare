@@ -195,6 +195,82 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: 6 out of 7 task types working perfectly (executive_insight, proposal_summary, meeting_minutes, risk_mitigation, health_score, next_followup). All returned substantial responses (>100 chars, most 2000-2700 chars). Model field correctly shows 'gpt-5' (NOT demo fallback - Emergent LLM budget working!). Minor: business_case task timed out after 60s (network timeout, not code issue). AI integration fully functional."
 
+  - task: "Activities CRUD (GET/POST/PATCH/DELETE /api/activities)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Full CRUD for activities. GET sorted by scheduledAt ascending. POST creates with default status 'Scheduled'. PATCH updates fields. DELETE removes activity."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET returns 8 activities sorted by scheduledAt ascending, UUIDs only (no _id). POST creates activity with UUID and default status 'Scheduled'. PATCH updates status to 'Done' successfully. DELETE removes activity and verified deletion. All CRUD operations working perfectly."
+
+  - task: "Products CRUD (GET/POST/PATCH/DELETE /api/products)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Full CRUD for products. Seed populates 13 products (SIMRS Digicare, IFMS Enterprise, ERP Enterprise Platform, Smart Manufacturing Platform, Smart Campus Platform, Command Center, GIS Platform, Network Infrastructure, CCTV AI Surveillance, IoT Platform, RFID System, API Gateway, Mobile Super App). All fields: name, desc, modules, startingPrice, subscription, implWeeks, target."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET returns exactly 13 seeded products with all expected names verified. All required fields present (name, desc, modules, startingPrice, subscription, implWeeks, target). POST creates custom product with UUID. PATCH updates product fields. DELETE removes product successfully. UUID validation passed (no _id). All CRUD operations working perfectly."
+
+  - task: "Proposals versioned document storage (GET/POST/DELETE /api/proposals, GET /api/proposals/:id/download)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Versioned document storage. GET list excludes base64 content field for bandwidth. POST auto-increments version by title+category scope. GET /:id/download returns full document with base64 content. DELETE removes proposal."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET list returns proposals without content field (bandwidth optimization verified). POST creates version 1 successfully. POST with same title+category auto-increments to version 2. POST with same title but different category creates version 1 (versioning scoped correctly). GET /:id/download returns base64 content. DELETE removes proposals. All versioning logic working perfectly."
+
+  - task: "Notifications (GET /api/notifications)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Returns array of notifications with types: 'overdue' (activities past date not Done), 'upcoming' (next 2 days scheduled), 'highvalue' (opps >= Rp 10B not closed), 'risk' (Critical severity or High+High). Levels: 'high' (overdue, risk critical), 'medium' (upcoming), 'low' (highvalue). Sorted by 'at' descending, max 20."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET returns 8 notifications with all required fields (id, type, level, title, desc, at). Types found: overdue, upcoming, highvalue, risk. Levels found: high, medium, low. Sorted by 'at' descending verified. Max 20 limit enforced. All notification logic working correctly."
+
+  - task: "Global Search (GET /api/search?q=...)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Case-insensitive search across opportunities, organizations, activities. Returns {opportunities:[], organizations:[], activities:[]}. No MongoDB _id in results, only UUID 'id'. Empty query returns empty arrays."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Search for 'SIMRS' returns 2 opportunities. Search for 'Sardjito' returns 2 opportunities, 1 organization (RSUP Dr. Sardjito), 1 activity. Search for 'nonexistentxyz' returns empty arrays. No query parameter returns empty arrays. Case-insensitive search verified (lowercase 'simrs' finds 'SIMRS'). UUID validation passed (no _id). All search functionality working perfectly."
+
+
 frontend:
   - task: "Executive Dashboard UI + PDF Export"
     implemented: true
@@ -270,24 +346,28 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.2"
-  test_sequence: 2
+  version: "1.3"
+  test_sequence: 3
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Seed data endpoint (POST /api/seed)"
-    - "Executive Dashboard aggregation (GET /api/dashboard)"
-    - "Opportunities CRUD + bulk import (GET/POST/PATCH/DELETE /api/opportunities, POST /api/opportunities/bulk)"
-    - "Organizations + Stakeholders CRUD"
-    - "Risk Register CRUD (GET/POST/PATCH/DELETE /api/risks)"
-    - "AI Assistant (POST /api/ai) with gpt-5 primary and gpt-4o fallback"
+    - "Activities CRUD (GET/POST/PATCH/DELETE /api/activities)"
+    - "Products CRUD (GET/POST/PATCH/DELETE /api/products)"
+    - "Proposals versioned document storage (GET/POST/DELETE /api/proposals, GET /api/proposals/:id/download)"
+    - "Notifications (GET /api/notifications)"
+    - "Global Search (GET /api/search?q=...)"
   stuck_tasks: []
-  test_all: true
+  - agent: "testing"
+    message: "✅ NEW ENDPOINTS TESTING COMPLETE - ALL 5 NEW MODULES WORKING PERFECTLY. Tested 6 test suites covering all new endpoints. Results: (1) Activities CRUD ✅ - GET sorted by scheduledAt asc, POST with default status 'Scheduled', PATCH updates, DELETE verified. (2) Products CRUD ✅ - 13 seeded products verified (all expected names found), full CRUD working. (3) Proposals ✅ - versioned storage working (auto-increment by title+category, no content in list, download returns base64). (4) Notifications ✅ - all types (overdue, upcoming, highvalue, risk) and levels (high, medium, low) working, sorted by 'at' desc, max 20. (5) Global Search ✅ - case-insensitive search across opportunities/organizations/activities, UUID validation passed. (6) Seed Products ✅ - idempotent, returns 13 products. All UUID validation passed (no MongoDB _id). Total: 6/6 tests passed. Backend is production-ready!"
+
+  test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
     message: "MVP + expansion complete. Please test all backend endpoints: seed, dashboard, opportunities (CRUD + bulk), organizations (CRUD + nested stakeholders), stakeholders (PATCH/DELETE), risks (CRUD), ai (all 7 task types). Verify UUIDs used (never MongoDB _id in responses), verify AI returns non-empty text (should hit gpt-4o fallback and NOT demo fallback since Emergent LLM key budget was recharged)."
+  - agent: "main"
+    message: "Added 5 new modules. NEW endpoints to test: (1) Activities CRUD - GET/POST/PATCH/DELETE /api/activities; (2) Products CRUD - GET/POST/PATCH/DELETE /api/products; (3) Proposals - GET list (no content), POST (auto-versioning by title+category), GET /api/proposals/:id/download (returns base64 content), DELETE; (4) GET /api/notifications - returns array of alerts based on overdue activities/upcoming/high-value opps/critical risks; (5) GET /api/search?q=... - returns {opportunities, organizations, activities}. Also verify seed still populates 13 products. All previous endpoints must still work."
   - agent: "testing"
     message: "✅ BACKEND TESTING COMPLETE - ALL CRITICAL ENDPOINTS WORKING. Tested 25 operations across all 6 backend tasks. Results: POST /api/seed ✅, GET /api/dashboard ✅ (all 10 KPIs), Opportunities full CRUD ✅, Bulk import ✅, Organizations CRUD ✅, Nested stakeholders ✅, Direct stakeholder ops ✅, Cascade delete ✅, Risks CRUD ✅, AI endpoint ✅ (6/7 tasks, gpt-5 working, NOT demo fallback). UUID validation passed - no MongoDB _id in any response. Data integrity verified - deletes work, cascade works. Minor: 1 AI task (business_case) timed out (network issue, not code). Backend is production-ready!"

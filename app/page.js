@@ -26,6 +26,12 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import OrganizationsView from '@/components/modules/OrganizationsView';
 import RiskRegister from '@/components/modules/RiskRegister';
 import ExcelImport from '@/components/modules/ExcelImport';
+import ActivityTimeline from '@/components/modules/ActivityTimeline';
+import ProposalCenter from '@/components/modules/ProposalCenter';
+import ProductCatalog from '@/components/modules/ProductCatalog';
+import NotificationBell from '@/components/modules/NotificationBell';
+import GlobalSearch from '@/components/modules/GlobalSearch';
+import ThemeToggle from '@/components/ThemeToggle';
 import { FileDown } from 'lucide-react';
 import { exportElementToPDF } from '@/lib/pdfExport';
 
@@ -107,25 +113,20 @@ function Sidebar({ collapsed, setCollapsed, current, setCurrent }) {
   );
 }
 
-function TopBar({ onMenu, onAI, onSearch }) {
+function TopBar({ onMenu, onAI, onSelectOpp, onSelectOrg, onSelectAct }) {
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center px-4 md:px-6 gap-3 sticky top-0 z-30">
-      <button className="md:hidden text-slate-600" onClick={onMenu}><Menu className="w-5 h-5"/></button>
-      <div className="flex-1 max-w-xl relative">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-        <Input placeholder="Search opportunities, organizations, activities…" className="pl-9 bg-slate-50 border-slate-200 h-10" onChange={e=>onSearch?.(e.target.value)}/>
-      </div>
-      <Button variant="outline" size="sm" onClick={onAI} className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50">
+    <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center px-4 md:px-6 gap-3 sticky top-0 z-30">
+      <button className="md:hidden text-slate-600 dark:text-slate-300" onClick={onMenu}><Menu className="w-5 h-5"/></button>
+      <GlobalSearch onSelectOpportunity={onSelectOpp} onSelectOrg={onSelectOrg} onSelectActivity={onSelectAct}/>
+      <Button variant="outline" size="sm" onClick={onAI} className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 dark:bg-slate-800 dark:border-blue-800 dark:text-blue-300">
         <Sparkles className="w-4 h-4"/> AI Assistant
       </Button>
-      <button className="relative w-9 h-9 rounded-lg hover:bg-slate-100 flex items-center justify-center">
-        <Bell className="w-4 h-4 text-slate-600"/>
-        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full"/>
-      </button>
-      <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
+      <ThemeToggle/>
+      <NotificationBell/>
+      <div className="flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-700">
         <Avatar className="w-8 h-8"><AvatarFallback className="bg-blue-600 text-white text-xs">EX</AvatarFallback></Avatar>
         <div className="hidden md:block">
-          <div className="text-sm font-semibold text-slate-900 leading-tight">Exec Demo</div>
+          <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-tight">Exec Demo</div>
           <div className="text-[11px] text-slate-500 leading-tight">Super Admin</div>
         </div>
       </div>
@@ -532,13 +533,13 @@ function AIPanel({ open, onClose, presetTask, presetContext }) {
 function Placeholder({ title, subtitle, icon: Icon }) {
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
-      <p className="text-sm text-slate-500">{subtitle}</p>
-      <Card className="mt-6 card-shadow border-slate-200">
+      <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{title}</h1>
+      <p className="text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
+      <Card className="mt-6 card-shadow border-slate-200 dark:border-slate-700">
         <CardContent className="p-12 flex flex-col items-center text-center">
-          <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4"><Icon className="w-8 h-8 text-blue-600"/></div>
-          <div className="text-lg font-semibold text-slate-800">Coming Next</div>
-          <div className="text-sm text-slate-500 max-w-md mt-2">This module is scaffolded and ready to build. The MVP focus is Executive Dashboard + CRM Pipeline + AI Assistant. Ask the team to prioritise this module and it will be activated.</div>
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mb-4"><Icon className="w-8 h-8 text-blue-600"/></div>
+          <div className="text-lg font-semibold text-slate-800 dark:text-slate-200">Coming Next</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400 max-w-md mt-2">This module is scaffolded and ready to build. Ask the team to prioritise this module and it will be activated.</div>
         </CardContent>
       </Card>
     </div>
@@ -618,20 +619,26 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex bg-[#F8FAFC]">
+    <div className="min-h-screen flex bg-[#F8FAFC] dark:bg-slate-950">
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} current={current} setCurrent={setCurrent}/>
       <div className="flex-1 flex flex-col min-w-0">
-        <TopBar onMenu={()=>setCollapsed(!collapsed)} onAI={openAIExec}/>
+        <TopBar
+          onMenu={()=>setCollapsed(!collapsed)}
+          onAI={openAIExec}
+          onSelectOpp={(o)=>{ setCurrent('crm'); setTimeout(()=>setOppDialog({open:true, opp:o}), 200); }}
+          onSelectOrg={()=>setCurrent('orgs')}
+          onSelectAct={()=>setCurrent('activities')}
+        />
         <main className="flex-1 overflow-y-auto">
           {current==='dashboard' && <Dashboard data={dashboard} onOpenAI={openAIExec}/>}
           {current==='crm' && <Kanban opportunities={opps} onMove={moveOpp} onOpen={(o)=>setOppDialog({open:true,opp:o})} onCreate={()=>setOppDialog({open:true,opp:null})}/>}
           {current==='orgs' && <OrganizationsView/>}
           {current==='stakeholders' && <OrganizationsView/>}
           {current==='projects' && <Placeholder title="Project Intelligence" subtitle="Project delivery visibility" icon={ListChecks}/>}
-          {current==='activities' && <Placeholder title="Activity Timeline" subtitle="Meetings, calls, WhatsApp, visits, demos" icon={CalendarClock}/>}
-          {current==='proposals' && <Placeholder title="Proposal Center" subtitle="Versioned proposal, BoM, RAB, MoM, NDA, PKS" icon={FileText}/>}
+          {current==='activities' && <ActivityTimeline/>}
+          {current==='proposals' && <ProposalCenter/>}
           {current==='risks' && <RiskRegister onAI={openAIForRisk}/>}
-          {current==='products' && <Placeholder title="Product Catalog" subtitle="Digicare product portfolio" icon={Package}/>}
+          {current==='products' && <ProductCatalog/>}
           {current==='partners' && <Placeholder title="Partnerships" subtitle="Huawei · Cisco · Fortinet · Dell · HPE" icon={Handshake}/>}
           {current==='reports' && <Placeholder title="Reporting Center" subtitle="PDF & Excel report generation" icon={BarChart3}/>}
           {current==='import' && <ExcelImport/>}
